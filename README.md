@@ -108,9 +108,11 @@ Databricks' built-in lineage tracking shows the job touching 2 upstream tables a
 This section documents the key design choices made while building this pipeline, along with the trade-offs each one carries.
 
 **Using GH Archive as a public dataset**
+
 GH Archive is a free, publicly accessible dataset, no authentication, API keys, or licensing agreements are required to download it. This made it an easy fit for this project's goals, but it also comes with trade-offs worth noting: the data reflects only *public* GitHub activity (private repos are excluded entirely), and GH Archive itself is a third-party, community-maintained project rather than an official GitHub product, so its long-term availability and schema stability aren't guaranteed by GitHub.
 
 **Quarantine instead of dropping bad records**
+
 As covered in Data Quality, invalid records are routed to a separate table rather than deleted. This adds a small amount of extra logic and storage, but preserves an audit trail and makes data issues visible instead of hiding them, a trade-off favoring transparency over pipeline simplicity.
 
 **Overwrite vs. incremental loading**
@@ -120,9 +122,11 @@ This pipeline uses `CREATE OR REPLACE TABLE` (full overwrite) rather than increm
 The downside is cost and runtime. Since overwrite re-processes the entire dataset every time it runs, and the historical window gets bigger or if the pipeline switches from the current batch to an ongoing, scheduled ingestion, the amount of data reprocessed per run will grow exponentially. A production-ready version handling continuous data can then swap out overwrite for MERGE (or use Databricks Autoloader in the Bronze layer).
 
 **Only capturing completed pull requests in Fact_PR_Lifecycle**
+
 The PR lifecycle fact table filters to rows where `closed_at IS NOT NULL`, meaning it only includes pull requests that were closed or merged within the dataset's time window. Pull requests that were opened but still open (not yet closed) are excluded from this table entirely. This was a deliberate choice to keep `cycle_time_hours` meaningful, an open PR has no cycle time to measure yet, but it also means the table understates total PR volume and can't be used on its own to answer "how many PRs are currently open."
 
 **Serverless compute over a dedicated cluster**
+
 All three notebooks run on Databricks Serverless compute rather than a manually sized, persistent cluster. This avoids idle cluster costs and cluster startup/management overhead, fitting the free-tier constraint from the Architecture Overview, at the cost of less fine-grained control over compute sizing for larger workloads.
 
 ## Future Improvements
