@@ -35,11 +35,11 @@ Out of GH Archive's full range of event types, this pipeline narrows in on the t
 | Issue Comment Event | A comment is added to a pull request or issue |
 
 **Time window**
-The pipeline currently covers one full week of GitHub activity — **August 3–9, 2026** — downloaded and processed as a single historical batch rather than a continuously updating feed. This window was large enough to produce a meaningful dataset (roughly 23.8 million raw events) while staying within the practical limits of a free-tier Databricks environment.
+The pipeline currently covers one full week of GitHub activity, **August 3–9, 2026**, downloaded and processed as a single historical batch rather than a continuously updating feed. This window was large enough to produce a meaningful dataset (roughly 23.8 million raw events) while staying within the practical limits of a free-tier Databricks environment.
 
 ## Data Quality
 
-Not every record collected from GitHub arrives complete. Fields can be missing, malformed, or absent depending on how GitHub reported the original event. Rather than silently dropping incomplete records — which would make the dataset quietly less trustworthy over time — this pipeline uses a **quarantine pattern**: anything that fails a quality check is routed to a separate holding table instead of being discarded or allowed to pollute downstream tables.
+Not every record collected from GitHub arrives complete. Fields can be missing, malformed, or absent depending on how GitHub reported the original event. Rather than silently dropping incomplete records — which would make the dataset quietly less trustworthy over time, this pipeline uses a **quarantine pattern**: anything that fails a quality check is routed to a separate holding table instead of being discarded or allowed to pollute downstream tables.
 
 **How records are checked**
 When raw data is cleaned and flattened in the Silver layer, each event is checked against two rules:
@@ -75,8 +75,6 @@ Cycle time — the time between a PR being opened and closed — varies widely a
 
 *Fastest (ascending):*
 
-![Fastest contributors by PR cycle time, part 1](media/image4.png)
-
 ![Fastest contributors by PR cycle time, part 2](media/image5.png)
 
 *Slowest (descending):*
@@ -110,13 +108,13 @@ Databricks' built-in lineage tracking shows the job touching 2 upstream tables a
 This section documents the key design choices made while building this pipeline, along with the trade-offs each one carries.
 
 **Using GH Archive as a public dataset**
-GH Archive is a free, publicly accessible dataset — no authentication, API keys, or licensing agreements are required to download it. This made it an easy fit for this project's goals, but it also comes with trade-offs worth noting: the data reflects only *public* GitHub activity (private repos are excluded entirely), and GH Archive itself is a third-party, community-maintained project rather than an official GitHub product — so its long-term availability and schema stability aren't guaranteed by GitHub.
+GH Archive is a free, publicly accessible dataset, no authentication, API keys, or licensing agreements are required to download it. This made it an easy fit for this project's goals, but it also comes with trade-offs worth noting: the data reflects only *public* GitHub activity (private repos are excluded entirely), and GH Archive itself is a third-party, community-maintained project rather than an official GitHub product, so its long-term availability and schema stability aren't guaranteed by GitHub.
 
 **Quarantine instead of dropping bad records**
-As covered in Data Quality, invalid records are routed to a separate table rather than deleted. This adds a small amount of extra logic and storage, but preserves an audit trail and makes data issues visible instead of hiding them — a trade-off favoring transparency over pipeline simplicity.
+As covered in Data Quality, invalid records are routed to a separate table rather than deleted. This adds a small amount of extra logic and storage, but preserves an audit trail and makes data issues visible instead of hiding them, a trade-off favoring transparency over pipeline simplicity.
 
 **Only capturing completed pull requests in Fact_PR_Lifecycle**
-The PR lifecycle fact table filters to rows where `closed_at IS NOT NULL`, meaning it only includes pull requests that were closed or merged within the dataset's time window. Pull requests that were opened but still open (not yet closed) are excluded from this table entirely. This was a deliberate choice to keep `cycle_time_hours` meaningful — an open PR has no cycle time to measure yet — but it also means the table understates total PR volume and can't be used on its own to answer "how many PRs are currently open."
+The PR lifecycle fact table filters to rows where `closed_at IS NOT NULL`, meaning it only includes pull requests that were closed or merged within the dataset's time window. Pull requests that were opened but still open (not yet closed) are excluded from this table entirely. This was a deliberate choice to keep `cycle_time_hours` meaningful, an open PR has no cycle time to measure yet, but it also means the table understates total PR volume and can't be used on its own to answer "how many PRs are currently open."
 
 **Serverless compute over a dedicated cluster**
 All three notebooks run on Databricks Serverless compute rather than a manually sized, persistent cluster. This avoids idle cluster costs and cluster startup/management overhead, fitting the free-tier constraint from the Architecture Overview, at the cost of less fine-grained control over compute sizing for larger workloads.
