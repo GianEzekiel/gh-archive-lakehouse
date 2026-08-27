@@ -63,13 +63,13 @@ With the star schema in place, three business questions were used to validate th
 
 ![Top 10 repos by push activity](media/image2.png)
 
-Every one of the top 10 repos shows all push activity concentrated on the main branch — no other branch names appear at all in this top-10 view. This suggests either a dataset dominated by simple, direct-to-main workflows (rather than feature-branch workflows), or that many of the most "active" repos by raw push count are automated, bot-driven, or non-standard projects (several names — er-forge-probe, email-probe, repos with generic or credential-like naming) rather than typical collaborative open-source projects. This is worth a follow-up look before treating raw push count alone as a proxy for "healthy" repo activity.
+Every one of the top 10 repos shows all push activity concentrated on the main branch, no other branch names appear at all in this top-10 view. This suggests either a dataset dominated by simple, direct-to-main workflows (rather than feature-branch workflows), or that many of the most "active" repos by raw push count are automated, bot-driven, or non-standard projects (several names: er-forge-probe, email-probe, repos with generic or credential-like naming) rather than typical collaborative open-source projects. This is worth a follow-up look before treating raw push count alone as a proxy for "healthy" repo activity.
 
 ### 2. Longest average PR cycle time, by repo
 
 ![Longest average PR cycle time by repo](media/image3.png)
 
-Cycle time — the time between a PR being opened and closed — varies widely across repos, from over four days (104 hours) down to under a day. The longest cycle times belong to lower-profile repos, while a recognizable, larger organization (Microsoft) appears further down the list with a comparatively fast 23-hour average, hinting that larger, more established projects may have more consistent review processes. With only a handful of PRs per repo in this one-week window, these averages should be read as directional rather than statistically robust.
+Cycle time, the time between a PR being opened and closed, varies widely across repos, from over four days (104 hours) down to under a day. The longest cycle times belong to lower-profile repos, while a recognizable, larger organization (Microsoft) appears further down the list with a comparatively fast 23-hour average, hinting that larger, more established projects may have more consistent review processes. With only a handful of PRs per repo in this one-week window, these averages should be read as directional rather than statistically robust.
 
 ### 3. Fastest and slowest PR cycle time, by contributor
 
@@ -81,7 +81,7 @@ Cycle time — the time between a PR being opened and closed — varies widely a
 
 ![Slowest contributors by PR cycle time](media/image6.png)
 
-The fastest contributors show an average PR cycle time of effectively 0 hours — meaning their pull requests were opened and closed within the same hour. This could reflect very small, low-risk changes merged quickly, but combined with Finding 1's pattern, it may also indicate automated or bot-driven PR activity rather than typical human review cycles. The slowest contributors top out around 23 hours, roughly a full business day — a much narrower spread than the repo-level cycle times in Finding 2.
+The fastest contributors show an average PR cycle time of effectively 0 hours, meaning their pull requests were opened and closed within the same hour. This could reflect very small, low-risk changes merged quickly, but combined with Finding 1's pattern, it may also indicate automated or bot-driven PR activity rather than typical human review cycles. The slowest contributors top out around 23 hours, roughly a full business day — a much narrower spread than the repo-level cycle times in Finding 2.
 
 ## Orchestration
 
@@ -92,7 +92,7 @@ The job is structured as three dependent tasks, each mapped to one notebook:
 
 ![Databricks job task sequence](media/image7.png)
 
-Each task only starts after the one before it finishes successfully. This ordering matters because each layer depends entirely on the output of the one before it — Silver reads from the Bronze table, and Gold reads from the Silver table — so running them out of order, or in parallel, could produce incomplete or stale results.
+Each task only starts after the one before it finishes successfully. This ordering matters because each layer depends entirely on the output of the one before it — Silver reads from the Bronze table, and Gold reads from the Silver table, so running them out of order, or in parallel, could produce incomplete or stale results.
 
 **Compute**
 All three tasks run on **Serverless** compute, meaning Databricks automatically provisions and manages the underlying infrastructure for each run rather than relying on a manually configured, always-on cluster. This keeps the job lightweight and cost-efficient, which fits the free-tier constraint noted in the Architecture Overview.
@@ -112,6 +112,12 @@ GH Archive is a free, publicly accessible dataset, no authentication, API keys, 
 
 **Quarantine instead of dropping bad records**
 As covered in Data Quality, invalid records are routed to a separate table rather than deleted. This adds a small amount of extra logic and storage, but preserves an audit trail and makes data issues visible instead of hiding them, a trade-off favoring transparency over pipeline simplicity.
+
+**Overwrite vs. incremental loading**
+
+This pipeline uses CREATE OR REPLACE TABLE (full overwrite) rather than incremental MERGE/append logic at every layer. This was a deliberate choice for the project's current scope: with a fixed, one-time historical batch (a 7-day GH Archive window), overwrite guarantees a clean, reproducible result on every run, critical during active development, where re-running cells multiple times while debugging could otherwise silently duplicate data under an append-only approach.
+
+The downside is cost and runtime. Since overwrite re-processes the entire dataset every time it runs, and the historical window gets bigger or if the pipeline switches from the current batch to an ongoing, scheduled ingestion, the amount of data reprocessed per run will grow exponentially. A production-ready version handling continuous data can then swap out overwrite for MERGE (or use Databricks Autoloader in the Bronze layer).
 
 **Only capturing completed pull requests in Fact_PR_Lifecycle**
 The PR lifecycle fact table filters to rows where `closed_at IS NOT NULL`, meaning it only includes pull requests that were closed or merged within the dataset's time window. Pull requests that were opened but still open (not yet closed) are excluded from this table entirely. This was a deliberate choice to keep `cycle_time_hours` meaningful, an open PR has no cycle time to measure yet, but it also means the table understates total PR volume and can't be used on its own to answer "how many PRs are currently open."
