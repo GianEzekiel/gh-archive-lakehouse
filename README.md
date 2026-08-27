@@ -115,7 +115,7 @@ As covered in Data Quality, invalid records are routed to a separate table rathe
 
 **Overwrite vs. incremental loading**
 
-This pipeline uses CREATE OR REPLACE TABLE (full overwrite) rather than incremental MERGE/append logic at every layer. This was a deliberate choice for the project's current scope: with a fixed, one-time historical batch (a 7-day GH Archive window), overwrite guarantees a clean, reproducible result on every run, critical during active development, where re-running cells multiple times while debugging could otherwise silently duplicate data under an append-only approach.
+This pipeline uses `CREATE OR REPLACE TABLE` (full overwrite) rather than incremental `MERGE` or append logic at every layer. This was a deliberate choice for the project's current scope: with a fixed, one-time historical batch (a 7-day GH Archive window), overwrite guarantees a clean, reproducible result on every run, critical during active development, where re-running cells multiple times while debugging could otherwise silently duplicate data under an append-only approach.
 
 The downside is cost and runtime. Since overwrite re-processes the entire dataset every time it runs, and the historical window gets bigger or if the pipeline switches from the current batch to an ongoing, scheduled ingestion, the amount of data reprocessed per run will grow exponentially. A production-ready version handling continuous data can then swap out overwrite for MERGE (or use Databricks Autoloader in the Bronze layer).
 
